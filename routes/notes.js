@@ -1,51 +1,50 @@
 const express = require("express");
 const { body, validationResult } = require("express-validator");
-const mysql = require("mysql2/promise"); // Using mysql2 for promises support
-const router = express.Router();
+const mysql = require("mysql2/promise");
+const noteRouter = express.Router();
 
-// MySQL connection pool configuration
-const pool = mysql.createPool({
+const dbPool = mysql.createPool({
   host: "localhost",
-  user: "root",
-  password: "root",
-  database: "app",
+  user: "db_user",
+  password: "db_password",
+  database: "notes_app_db",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
 });
 
-// GET localhost:5000/api/notes/fetchallbooks (to get all the notes)
-router.get("/fetchallbooks", async (req, res) => {
+// GET localhost:5000/api/notes/allnotes
+noteRouter.get("/allnotes", async (req, res) => {
   try {
-    // Use the pool to get a connection
-    const connection = await pool.getConnection();
+    const connection = await dbPool.getConnection();
     const [notes, fields] = await connection.query("SELECT * FROM notes");
-    connection.release(); // Release the connection back to the pool
+    connection.release();
 
     res.json(notes);
   } catch (error) {
     console.error(error.message);
-    res.status(500).send("Internal Server error");
+    res.status(500).send("Internal Server Error");
   }
 });
 
-// POST localhost:5000/api/notes/addnote (to create new notes)
-router.post(
+noteRouter.post(
   "/addnote",
   [
-    body("title", "Enter a Valid title").isLength({ min: 3 }),
-    body("description", "Description at least 5 Characters").isLength({
-      min: 5,
-    }),
+    body("title", "Enter a valid title").isLength({ min: 3 }),
+    body("description", "Description should be at least 5 characters").isLength(
+      {
+        min: 5,
+      }
+    ),
   ],
   async (req, res) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+      const validationErrors = validationResult(req);
+      if (!validationErrors.isEmpty()) {
+        return res.status(400).json({ errors: validationErrors.array() });
       }
 
-      const connection = await pool.getConnection();
+      const connection = await dbPool.getConnection();
       const [result, fields] = await connection.query(
         "INSERT INTO notes (title, description, author, bookID, quantity, borrower) VALUES (?, ?, ?, ?, ?, ?)",
         [
@@ -69,9 +68,9 @@ router.post(
       res.json(savedNote);
     } catch (error) {
       console.error(error.message);
-      res.status(500).send("Internal Server error");
+      res.status(500).send("Internal Server Error");
     }
   }
 );
 
-module.exports = router;
+module.exports = noteRouter;
